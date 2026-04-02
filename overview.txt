@@ -1,0 +1,5 @@
+ROOT OCEAN is a public documentation site for the Google.org submission. 
+It includes system overviews for health, environment, economy, and stability. 
+The project uses static HTML pages and a no-touch architecture for internal engines. 
+GitHub Pages serves the documentation from the root folder of the repository. 
+Internal JS engines run locally and are not part of the public deployment.
