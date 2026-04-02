@@ -1,65 +1,81 @@
 import os
+import json
 import pandas as pd
 from docx import Document
-from jinja2 import Template
+from datetime import datetime
 import matplotlib.pyplot as plt
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# 1. Configuration - Uses Environment Variables for GitHub/Vercel Security
-GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID") # The ID of your 'ROOT_OCEAN' folder
+# --- CONFIGURATION (Uses GitHub Secrets) ---
+# Paste your Service Account JSON into a GitHub Secret named: GOOGLE_CREDENTIALS_JSON
+SERVICE_ACCOUNT_INFO = os.getenv("GOOGLE_CREDENTIALS_JSON")
+# The ID of the Google Drive folder for ROOT_OCEAN
+FOLDER_ID = os.getenv("DRIVE_FOLDER_ID") 
 
-def generate_report(data_dict, output_file):
-    """Creates a professional .docx report using python-docx."""
+def create_ocean_report(data, filename):
+    """Generates a professional .docx with charts for ssgpt6.com submission."""
     doc = Document()
-    doc.add_heading('GNAIAAAC LLC - Project Root Ocean Claim', 0)
+    doc.add_heading('GNAIAAAC LLC: ROOT OCEAN SUBMISSION', 0)
     
-    # Add data from Pandas
-    df = pd.DataFrame(data_dict)
-    doc.add_paragraph(f"Report Data Summary:\n{df.describe()}")
+    # Process Data with Pandas
+    df = pd.DataFrame(data)
+    doc.add_heading('Data Summary', level=1)
+    doc.add_paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Simple Matplotlib plot
-    plt.figure(figsize=(5, 3))
-    plt.plot(df['id'], df['value'])
-    plt.title("Ocean Metric Trends")
-    plt.savefig("trend.png")
+    # Create Visualization with Matplotlib
+    plt.figure(figsize=(6, 4))
+    plt.plot(df['timestamp'], df['metric'], marker='o', color='blue')
+    plt.title('Ocean Metric Trends - Root Ocean')
+    plt.grid(True)
+    plot_path = 'ocean_trend.png'
+    plt.savefig(plot_path)
+    plt.close()
     
-    doc.add_picture("trend.png")
-    doc.save(output_file)
-    print(f"Successfully generated {output_file}")
+    doc.add_picture(plot_path)
+    doc.add_paragraph("Analysis: The chart above indicates the projected ecosystem recovery metrics for the ROOT OCEAN project.")
+    
+    doc.save(filename)
+    return filename
 
-def upload_to_drive(file_path, folder_id):
-    """Uploads the generated file to Google Drive using Service Account."""
-    if not GOOGLE_SERVICE_ACCOUNT_JSON:
-        print("Error: Google Credentials not found in environment.")
+def upload_to_google_drive(file_path):
+    """Uploads the file directly to the ROOT_OCEAN folder on Google Drive."""
+    if not SERVICE_ACCOUNT_INFO:
+        print("Error: GOOGLE_CREDENTIALS_JSON not found in Environment Variables.")
         return
 
-    # Authenticate
-    import json
-    info = json.loads(GOOGLE_SERVICE_ACCOUNT_JSON)
+    # Authenticate using the JSON secret
+    info = json.loads(SERVICE_ACCOUNT_INFO)
     creds = service_account.Credentials.from_service_account_info(info)
     service = build('drive', 'v3', credentials=creds)
 
     file_metadata = {
         'name': os.path.basename(file_path),
-        'parents': [folder_id] if folder_id else []
+        'parents': [FOLDER_ID] if FOLDER_ID else []
     }
-    media = MediaFileUpload(file_path, resumable=True)
     
-    file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-    print(f"File uploaded to Drive. File ID: {file.get('id')}")
+    media = MediaFileUpload(file_path, resumable=True)
+    uploaded_file = service.files().create(
+        body=file_metadata, 
+        media_body=media, 
+        fields='id'
+    ).execute()
+    
+    print(f"Success! File ID: {uploaded_file.get('id')} uploaded to Drive.")
 
 if __name__ == "__main__":
-    # Sample Data for ssgpt6.com submission
-    sample_data = {
-        "id": [1, 2, 3, 4],
-        "value": [10, 25, 13, 40]
+    # Sample Data Payload
+    ocean_data = {
+        "timestamp": ["2026-01", "2026-02", "2026-03", "2026-04"],
+        "metric": [45, 52, 61, 78]
     }
     
-    filename = "Root_Ocean_Claim_Report.docx"
+    report_name = "Root_Ocean_Claim_Analysis.docx"
     
-    # Execute steps
-    generate_report(sample_data, filename)
-    upload_to_drive(filename, DRIVE_FOLDER_ID)
+    try:
+        generated_file = create_ocean_report(ocean_data, report_name)
+        upload_to_google_drive(generated_file)
+    except Exception as e:
+        print(f"Build Failed: {str(e)}")
+        exit(1) # Ensures GitHub Actions registers the failure
