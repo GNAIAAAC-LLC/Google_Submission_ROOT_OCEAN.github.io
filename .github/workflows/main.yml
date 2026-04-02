@@ -1,7 +1,45 @@
-- name: Run Analysis and Upload
-  env:
-    GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
-    GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-  run: |
-    pip install -r requirements.txt
-    python generate_claims_drive_user.py
+name: Google Submission ROOT_OCEAN
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allows you to run this manually for testing
+
+jobs:
+  analyze-and-submit:
+    runs-on: ubuntu-latest
+    
+    # Critical: This fixes the "Metadata: read" restriction seen in your logs
+    permissions:
+      contents: write
+      security-events: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip' # Speeds up future runs
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Root Ocean Analysis
+        env:
+          # These must match the names you set in GitHub Settings > Secrets
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+        run: |
+          python generate_claims_drive_user.py
+
+      - name: Upload Build Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-report
+          path: Root_Ocean_Claim_Analysis.docx
